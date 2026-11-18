@@ -1,0 +1,5 @@
+.env
+perfil-chrome/
+apostas.csv
+__pycache__/
+*.pyc
