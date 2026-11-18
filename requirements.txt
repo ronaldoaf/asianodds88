@@ -1,1 +1,4 @@
 playwright>=1.40
+onnxruntime>=1.16
+numpy>=1.24
+requests>=2.28

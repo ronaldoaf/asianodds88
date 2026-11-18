@@ -3,3 +3,8 @@ perfil-chrome/
 apostas.csv
 __pycache__/
 *.pyc
+bot/model.onnx
+*.onnx
+estado.json
+aliases.json
+pendentes.json

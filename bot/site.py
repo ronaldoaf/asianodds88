@@ -117,6 +117,16 @@ class AsianOddsSite:
     def other_messages_since(self, ts_ms: float) -> list:
         return self.page.evaluate("(t) => window.__aoBot.other.filter(m => m.ts >= t)", ts_ms)
 
+    def read_credit(self) -> float:
+        """Saldo "Credit" do Account Summary (ex. "510.92 EUR")."""
+        txt = self.page.evaluate(
+            """() => { const r = [...document.querySelectorAll('tr, div')].find(e => e.children.length <= 3 &&
+                 /^\\s*Credit\\s/.test(e.innerText || '')); return r ? r.innerText : ''; }"""
+        )
+        import re
+        m = re.search(r"([\d,]+\.\d+)", txt or "")
+        return float(m.group(1).replace(",", "")) if m else 0.0
+
     # ---------- cupom ----------
     def open_under_slip(self, lid: int) -> Optional[dict]:
         """Clica no Under FT da linha e lê o cupom. Devolve as casas disponíveis."""
@@ -162,8 +172,8 @@ class AsianOddsSite:
         )
 
     def place_open_slip(self, amount: float, min_odd: float) -> dict:
-        """Preenche e envia o cupom aberto. Só chame com cfg.dry_run == False."""
-        assert not self.cfg.dry_run, "dry_run ativo: aposta real bloqueada"
+        """Preenche e envia o cupom aberto. Só funciona com cfg.simulacao == False."""
+        assert not self.cfg.simulacao, "simulação ativa: aposta real bloqueada"
         p = self.page
         t0 = time.time() * 1000
         p.fill("#betdlg_USR_AMOUNT", f"{amount:.2f}".rstrip("0").rstrip("."))
