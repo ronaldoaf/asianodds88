@@ -71,9 +71,24 @@ class AsianOddsSite:
 
     def _wait_market(self) -> None:
         p = self.page
-        p.wait_for_selector("table.igametable", timeout=60000)
-        p.wait_for_function("window.__aoBot && window.__aoBot.hooked", timeout=30000)
+        p.wait_for_function("window.__aoBot && window.__aoBot.hooked", timeout=60000)
+        try:
+            # a grade pode demorar (ou ficar vazia se não houver jogo ao vivo): não é erro fatal
+            p.wait_for_selector("table.igametable", timeout=90000)
+        except Exception:
+            print("Aviso: a grade de jogos não apareceu em 90 s; seguindo com o feed.")
         self.only_live()
+
+    def reload(self) -> None:
+        """Recarrega a página; se algo falhar, volta para a tela de login e entra de novo."""
+        try:
+            self.page.reload(wait_until="domcontentloaded", timeout=60000)
+            self.ensure_logged_in()
+        except Exception as e:
+            print("Recarga falhou, refazendo login:", str(e).splitlines()[0])
+            self.page.goto(LOGIN_URL, wait_until="domcontentloaded", timeout=60000)
+            self.page.wait_for_timeout(2000)
+            self.ensure_logged_in()
 
     def only_live(self) -> None:
         """Deixa só o filtro Live marcado."""
@@ -89,10 +104,16 @@ class AsianOddsSite:
             )
 
     def is_logged_out(self) -> bool:
-        return bool(self.page.evaluate(
-            """() => [...document.querySelectorAll('.ui-dialog')].some(d =>
-                d.offsetParent !== null && /Logged Out|Connection Error/i.test(d.innerText))"""
-        )) or "login" in self.page.url
+        if "login" in self.page.url:
+            return True
+        try:
+            return bool(self.page.evaluate(
+                """() => [...document.querySelectorAll('.ui-dialog')].some(d =>
+                    d.offsetParent !== null && /Logged Out|Connection Error/i.test(d.innerText))"""
+            ))
+        except Exception:
+            # página navegando no meio da checagem ("Execution context was destroyed")
+            return False
 
     # ---------- feed ----------
     def feed_age_s(self) -> float:

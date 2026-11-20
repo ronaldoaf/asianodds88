@@ -8,3 +8,5 @@ bot/model.onnx
 estado.json
 aliases.json
 pendentes.json
+ciclos.jsonl
+*.log

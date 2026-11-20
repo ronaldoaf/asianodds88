@@ -105,6 +105,16 @@ def ciclo(site: AsianOddsSite, cfg: Config, est: Estado, casador: Casador):
     }
     print(time.strftime("%H:%M:%S"), f"stats {len(stats)} | linhas {len(lines)} | candidatos {len(cands)}",
           {k: len(v) for k, v in desc.items() if v})
+    for c in est.ultimo_ciclo["candidatos"]:
+        print(f"   cand: {c['jogo']} -> {c['asianodds']} | U{c['goalline']} @{c['oddsU']} | idx {c['idx']}")
+    for motivo, jogos in desc.items():
+        if jogos and motivo != "ja_publicado":
+            print(f"   {motivo}: {'; '.join(jogos)}")
+    if stats:
+        idades = [(time.time() - float(s.get("ts") or 0)) / 60 for s in stats]
+        print(f"   idade das stats: {min(idades):.1f} a {max(idades):.1f} min")
+        with open("ciclos.jsonl", "a", encoding="utf-8") as f:
+            f.write(json.dumps(est.ultimo_ciclo, ensure_ascii=False) + "\n")
     sels = [c for c in cands if c.idx > cfg.minimo_indice_para_publicar]
     banca = cfg.banca or site.read_credit()
     for c in sels:
@@ -140,8 +150,7 @@ def main() -> None:
             try:
                 if site.is_logged_out() or site.feed_age_s() > 120 or time.time() - t_reload > 30 * 60:
                     print("Recarregando a página (sessão/feed)...")
-                    site.page.reload()
-                    site.ensure_logged_in()
+                    site.reload()
                     t_reload = time.time()
                 ciclo(site, cfg, est, casador)
             except Exception as e:
