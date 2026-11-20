@@ -90,18 +90,26 @@ class AsianOddsSite:
             self.page.wait_for_timeout(2000)
             self.ensure_logged_in()
 
-    def only_live(self) -> None:
-        """Deixa só o filtro Live marcado."""
-        for label in ("Live", "Today", "Early"):
-            want = label == "Live"
-            self.page.evaluate(
-                """([label, want]) => {
-                    const cb = [...document.querySelectorAll('input[type=checkbox]')]
-                      .find(e => e.labels && [...e.labels].some(l => l.innerText.trim() === label));
-                    if (cb && cb.checked !== want) cb.click();
-                }""",
-                [label, want],
+    def only_live(self) -> bool:
+        """Deixa só o filtro Live marcado. O site às vezes restaura os filtros salvos depois de
+        carregar, por isso isto roda a cada ciclo. Devolve True se precisou mudar algo."""
+        try:
+            mudou = self.page.evaluate(
+                """() => {
+                    let mudou = false;
+                    for (const [label, want] of [['Live', true], ['Today', false], ['Early', false]]) {
+                        const cb = [...document.querySelectorAll('input[type=checkbox]')]
+                          .find(e => e.labels && [...e.labels].some(l => l.innerText.trim() === label));
+                        if (cb && cb.checked !== want) { cb.click(); mudou = true; }
+                    }
+                    return mudou;
+                }"""
             )
+        except Exception:
+            return False
+        if mudou:
+            print("Filtros ajustados: só Live.")
+        return bool(mudou)
 
     def is_logged_out(self) -> bool:
         if "login" in self.page.url:

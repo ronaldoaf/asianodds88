@@ -152,6 +152,7 @@ def main() -> None:
                     print("Recarregando a página (sessão/feed)...")
                     site.reload()
                     t_reload = time.time()
+                site.only_live()
                 ciclo(site, cfg, est, casador)
             except Exception as e:
                 est.erro(f"ciclo: {e}")
