@@ -167,8 +167,12 @@ class AsianOddsSite:
         span = p.locator(f"table#id_{lid} span.FTUnder.BetItem").first
         if span.count() == 0 or not span.inner_text().strip():
             return None
-        span.scroll_into_view_if_needed()
-        span.click()
+        # clique via JS: funciona mesmo se a linha estiver fora da área visível ou a liga recolhida
+        p.evaluate(
+            """(lid) => { const s = document.querySelector(`table#id_${lid} span.FTUnder.BetItem`);
+                 if (s) { s.scrollIntoView({block: 'center'}); s.click(); } }""",
+            lid,
+        )
         p.wait_for_selector("#dlgPlaceBet", state="visible", timeout=10000)
         # espera a(s) casa(s) responderem com preço
         p.wait_for_function(

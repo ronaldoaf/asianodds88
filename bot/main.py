@@ -17,6 +17,14 @@ from .stats import fetch_stats
 from .strategy import Candidato, avaliar
 
 DIA = 24 * 3600
+MAX_TENTATIVAS_TELA = 3   # falhas só de tela/cupom antes de bloquear o jogo por 24 h
+
+
+class FalhaTela(RuntimeError):
+    """Falha ao ler a tela/cupom (não é decisão da estratégia): o jogo pode ser tentado de novo."""
+
+
+_tentativas_tela: dict = {}
 
 
 class Estado:
@@ -162,7 +170,10 @@ def ciclo(site: AsianOddsSite, cfg: Config, est: Estado, casador: Casador):
             for d in det:
                 print("     ", d)
             if not esc:
-                raise RuntimeError(f"Nenhuma linha com odd da {cfg.bookie} >= {cfg.odds_minima} em {c.key}")
+                msg = f"Nenhuma linha com odd da {cfg.bookie} >= {cfg.odds_minima} em {c.key}"
+                if det and all(": erro " in d for d in det):
+                    raise FalhaTela(msg + " (não conseguiu abrir o cupom)")
+                raise RuntimeError(msg)
             ln, odd_pin, idx_pin = esc
             if not idx_pin > cfg.minimo_indice_para_publicar:
                 raise RuntimeError(f"Com a odd da {cfg.bookie} o melhor idx é {idx_pin:.4f} (U{ln.ft_line_raw} @{odd_pin}) em {c.key}")
@@ -170,6 +181,11 @@ def ciclo(site: AsianOddsSite, cfg: Config, est: Estado, casador: Casador):
             r = apostar(site, c, cfg, banca, est, ln=ln, odds=odd_pin, idx=idx_pin)
             print(f"   -> {'simulado' if r.get('simulado') else 'enviado'}: {r['valor']} @ {r['odds']}")
             est.published.append({**base, **r})
+        except FalhaTela as e:
+            n = _tentativas_tela[c.key] = _tentativas_tela.get(c.key, 0) + 1
+            est.erro(f"{e} [tentativa {n}/{MAX_TENTATIVAS_TELA}]")
+            if n >= MAX_TENTATIVAS_TELA:
+                est.published.append({**base, "odds": c.line.ft_under, "idx": c.idx, "valor": 0, "erro": str(e)})
         except Exception as e:
             # marca mesmo assim para não repetir o jogo em loop (como no bot365_blogabet)
             est.published.append({**base, "odds": c.line.ft_under, "idx": c.idx, "valor": 0, "erro": str(e)})
