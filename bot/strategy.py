@@ -29,6 +29,7 @@ class Candidato:
     partida: Partida
     line: Line
     idx: float
+    opcoes: List = field(default_factory=list)  # [(idx_feed, Line)] de todas as linhas válidas, melhor primeiro
 
 
 def agrupar(lines: List[Line]) -> List[Partida]:
@@ -67,15 +68,18 @@ def avaliar(stats: List[dict], lines: List[Line], cfg: Config, ja: set, casador:
         if not ls:
             descartes["sem_goal_line"].append(key); continue
         best = None
+        opcoes = []
         for l in ls:
             if abs(p_over(l.ft_over, l.ft_under) - 0.5) >= cfg.max_desequilibrio_odds:
                 continue
             if l.ft_under < cfg.odds_minima:
                 continue
             idx = calc_index(st, l.ft_line, l.ft_under)
+            opcoes.append((idx, l))
             if best is None or idx > best.idx:
                 best = Candidato(key, st, p, l, idx)
         if best is None:
             descartes["sem_linha_valida"].append(key); continue
+        best.opcoes = sorted(opcoes, key=lambda x: x[0], reverse=True)
         candidatos.append(best)
     return candidatos, descartes

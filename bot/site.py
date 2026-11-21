@@ -61,9 +61,12 @@ class AsianOddsSite:
             self._wait_market()
             return
         if self.cfg.user and self.cfg.password:
+            p.wait_for_selector("#txtUserID", timeout=60000)
             p.fill("#txtUserID", self.cfg.user)
             p.fill("#txtPass", self.cfg.password)
-            p.click("#btnDoLogin")
+            # o botão fica desabilitado por alguns segundos depois que a página carrega
+            p.wait_for_selector("#btnDoLogin:not([disabled])", timeout=60000)
+            p.click("#btnDoLogin", timeout=30000)
         else:
             print(f"Faça o login manualmente na janela do navegador (até {wait_manual_s}s)...")
         p.wait_for_url("**/UserPages/market.html*", timeout=wait_manual_s * 1000)

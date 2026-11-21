@@ -47,10 +47,45 @@ class Estado:
         self.errors.append({"data": msg, "timestamp": time.time()})
 
 
-def apostar(site: AsianOddsSite, c: Candidato, cfg: Config, banca: float, est: Estado) -> dict:
+def odd_casa(site: AsianOddsSite, ln, cfg: Config):
+    """Abre o cupom da linha e devolve o registro da casa (cfg.bookie) com preço, ou None."""
+    slip = site.open_under_slip(ln.lid)
+    site.close_slip()
+    if not slip:
+        return None
+    book = next((b for b in slip["books"] if b["code"] == cfg.bookie and b["checked"] and b["price"]), None)
+    if book and book["line"] and parse_line(book["line"]) != ln.ft_line:
+        return None
+    return book
+
+
+def escolher_linha_casa(site: AsianOddsSite, c: Candidato, cfg: Config, max_linhas: int = 4):
+    """A odd da grade é a melhor entre TODAS as casas da AsianOdds, que pode ser bem maior que a da
+    casa em que apostamos. Aqui o índice é recalculado com a odd real da casa em cada linha válida,
+    e fica a linha de maior índice. Devolve (Line, odd_casa, idx, detalhes)."""
+    melhor, detalhes = None, []
+    for _idx_feed, ln in c.opcoes[:max_linhas]:
+        try:
+            book = odd_casa(site, ln, cfg)
+        except Exception as e:
+            detalhes.append(f"U{ln.ft_line_raw}: erro {str(e).splitlines()[0][:60]}")
+            continue
+        if not book:
+            detalhes.append(f"U{ln.ft_line_raw}: {cfg.bookie} sem preço")
+            continue
+        idx = calc_index(c.st, ln.ft_line, book["price"])
+        detalhes.append(f"U{ln.ft_line_raw}: grade {ln.ft_under} / {cfg.bookie} {book['price']} idx {idx:.4f}")
+        if book["price"] >= cfg.odds_minima and (melhor is None or idx > melhor[2]):
+            melhor = (ln, book["price"], idx)
+    return melhor, detalhes
+
+
+def apostar(site: AsianOddsSite, c: Candidato, cfg: Config, banca: float, est: Estado,
+            ln=None, odds=None, idx=None) -> dict:
     """Abre o cupom, relê a odd da casa, recalcula índice/valor e (se não for simulação) aposta."""
-    ln = c.line
-    odds, idx = ln.ft_under, c.idx
+    ln = ln or c.line
+    odds = odds if odds is not None else ln.ft_under
+    idx = idx if idx is not None else c.idx
     for tentativa in range(1, 4):
         slip = site.open_under_slip(ln.lid)
         if not slip:
@@ -123,7 +158,16 @@ def ciclo(site: AsianOddsSite, cfg: Config, est: Estado, casador: Casador):
         base = {"home_v_away": c.key, "asianodds": f"{c.partida.home} v {c.partida.away}",
                 "goalline": c.line.ft_line, "timestamp": time.time()}
         try:
-            r = apostar(site, c, cfg, banca, est)
+            esc, det = escolher_linha_casa(site, c, cfg)
+            for d in det:
+                print("     ", d)
+            if not esc:
+                raise RuntimeError(f"Nenhuma linha com odd da {cfg.bookie} >= {cfg.odds_minima} em {c.key}")
+            ln, odd_pin, idx_pin = esc
+            if not idx_pin > cfg.minimo_indice_para_publicar:
+                raise RuntimeError(f"Com a odd da {cfg.bookie} o melhor idx é {idx_pin:.4f} (U{ln.ft_line_raw} @{odd_pin}) em {c.key}")
+            base.update({"goalline": ln.ft_line, "odd_grade": ln.ft_under})
+            r = apostar(site, c, cfg, banca, est, ln=ln, odds=odd_pin, idx=idx_pin)
             print(f"   -> {'simulado' if r.get('simulado') else 'enviado'}: {r['valor']} @ {r['odds']}")
             est.published.append({**base, **r})
         except Exception as e:
